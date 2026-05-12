@@ -1,0 +1,22 @@
+The following table contains the result of the test runs. 
+
+| ScaleFactor | GPU (ms)   | CPU (ms)   |
+|-------------|------------|------------|
+| 1           | 611        | 886        |
+| 2           | 583        | 1731       |
+| 4           | 575        | 3517       |
+| 8           | 608        | 7547       |
+| 16          | 551        | 16195      |
+| 32          | 680        | 32719      |
+| 64          | 946        | 57179      |
+| 128         | 1311       | 231274     |
+
+Conclusions:
+- GPU runtime is flat (~550–680 ms) up to scale=32, then begins to climb (946 ms at 64, 1311 ms
+  at 128). Below 32, the kernel is too small to matter — runtime is pure overhead. Above 32, real
+  compute starts to dominate.
+- CPU scales roughly linearly per doubling up to scale=64, then breaks down at 128 (57 s → 231 s,
+  a 4× jump). The working set has outgrown the cache; the CPU is now memory-bandwidth-bound.
+- GPU is faster at every scale, and the gap widens with size: ~1.4× at scale=1, ~48× at 32, ~176×
+  at 128. The trends diverge — GPU is just entering its useful regime as the CPU is leaving its
+  efficient one.

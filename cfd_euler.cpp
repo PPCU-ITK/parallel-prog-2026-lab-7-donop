@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <algorithm>
 #include <sstream>
+#include <chrono>
+#include <cstdlib>
 
 
 using namespace std;
@@ -54,10 +56,16 @@ void fluxY(double rho, double rhou, double rhov, double E,
 // ------------------------------------------------------------
 // Main simulation routine
 // ------------------------------------------------------------
-int main(){
+int main(int argc, char* argv[]){
+    // ----- Parse command-line arguments -----
+    int scaleFactor = 1;
+    if (argc > 1) scaleFactor = atoi(argv[1]);
+    if (scaleFactor < 1) scaleFactor = 1;
+
     // ----- Grid and domain parameters -----
-    const int Nx = 200;         // Number of cells in x (excluding ghost cells)
-    const int Ny = 100;         // Number of cells in y
+    const int Nx = 200;   // Number of cells in x (excluding ghost cells)
+    const int Ny = 100 * scaleFactor;   // Number of cells in y
+    cout << "Grid size: Nx = " << Nx << ", Ny = " << Ny << endl;
     const double Lx = 2.0;      // Domain length in x
     const double Ly = 1.0;      // Domain length in y
     const double dx = Lx / Nx;
@@ -135,6 +143,10 @@ int main(){
     const int nSteps = 2000;
 
     // ----- Main time-stepping loop -----
+    auto t_start = chrono::high_resolution_clock::now();
+    #pragma omp target data map(tofrom: rho[0:total_size], rhou[0:total_size], rhov[0:total_size], E[0:total_size], \
+                                           rho_new[0:total_size], rhou_new[0:total_size], rhov_new[0:total_size], E_new[0:total_size]) \
+                            map(to: solid[0:total_size], Nx, Ny, dx, dy, rho0, u0, v0, E0, dt)
     for (int n = 0; n < nSteps; n++){
         // --- Apply boundary conditions on ghost cells ---
         // Left boundary (inflow): fixed free-stream state
@@ -220,7 +232,7 @@ int main(){
         }
 
         // Copy updated values back
-        #pragma omp target teams distribute parallel for
+        #pragma omp target teams distribute parallel for collapse(2)
         for (int i = 1; i <= Nx; i++){
             for (int j = 1; j <= Ny; j++){
                 rho[i*(Ny+2)+j] = rho_new[i*(Ny+2)+j];
@@ -246,7 +258,9 @@ int main(){
             cout << "Step " << n << " completed, total kinetic energy: " << total_kinetic << endl;
         }
     }
+    auto t_end = chrono::high_resolution_clock::now();
+    auto elapsed_ms = chrono::duration_cast<chrono::milliseconds>(t_end - t_start).count();
+    cout << "Total elapsed time: " << elapsed_ms << " ms" << endl;
 
     return 0;
 }
-
